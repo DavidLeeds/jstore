@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+
+      matrix:
+        os: [ubuntu-latest]
+        build_type: [Release, Debug]
+        compiler: [g++] # 'clang' temporarily disabled as github actions uses clang 14, which has an out-of-date interpretation of C++20 standard and errors out.
+        dbus_support: [OFF, ON]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set reusable strings
+      # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
+      id: strings
+      shell: bash
+      run: echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
+
+    - name: Install libsystemd dependencies
+      if: matrix.dbus_support == 'ON'
+      run: |
+        sudo apt update -y
+        sudo apt install -y meson ninja-build libcap-dev libmount-dev m4 gperf
+
+    - name: Configure CMake
+      # Configure CMake in a 'build' subdirectory.
+      run: >
+        cmake
+        -B ${{ steps.strings.outputs.build-output-dir }}
+        -S ${{ github.workspace }}
+        -DCMAKE_CXX_COMPILER=${{ matrix.compiler }}
+        -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+        -DCMAKE_CXX_STANDARD=20
+        -DJSTORE_BUILD_JSON=ON
+        -DJSTORE_BUILD_DBUS=ON
+        -DJSTORE_BUILD_TESTS=ON
+        -DJSTORE_BUILD_EXAMPLES=ON
+        -DJSTORE_BUILD_EXAMPLES=ON
+        -DJSTORE_ENABLE_DBUS=${{ matrix.dbus_support }}
+
+    - name: Build
+      # Note that --config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
+      run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
+
+    - name: Test
+      working-directory: ${{ steps.strings.outputs.build-output-dir }}
+      # Note that --build-config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
+      run: dbus-run-session ctest --output-on-failure --build-config ${{ matrix.build_type }}

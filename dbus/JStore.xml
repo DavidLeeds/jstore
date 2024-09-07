@@ -1,0 +1,27 @@
+<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
+"http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+
+<node>
+
+    <interface name="io.davidleeds.JStore">
+        <method name="Get">
+            <arg type="s" name="Path" direction="in" />
+            <arg type="s" name="ValueJson" direction="out" />
+        </method>
+
+        <method name="GetAll">
+            <!-- dict{path, JSON encoded value} -->
+            <arg type="a{ss}" name="ValuesJson" direction="out" />
+        </method>
+
+        <method name="Set">
+            <arg type="s" name="Path" direction="in" />
+            <arg type="s" name="ValueJson" direction="in" />
+        </method>
+
+        <signal name="ValuesChanged">
+            <arg type="a{ss}" name="Values" />
+        </signal>
+    </interface>
+
+</node>
