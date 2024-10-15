@@ -10,7 +10,7 @@ if(NOT JSTORE_BUILD_JSON)
     message(STATUS "jstore: using system nlohmann_json")
     find_package(nlohmann_json ${JSTORE_JSON_VERSION} REQUIRED)
 else()
-    message(STATUS "jstore: downloading nlohmann_json")
+    message(STATUS "jstore: downloading nlohmann_json v${JSTORE_JSON_VERSION}")
     FetchContent_Declare(
         nlohmann_json
         GIT_REPOSITORY https://github.com/nlohmann/json.git
@@ -30,7 +30,7 @@ set(JSTORE_FMT_VERSION "11.0.2" CACHE STRING "fmt version to use in the project"
 include(CheckIncludeFileCXX)
 check_include_file_cxx("format" JSTORE_STD_FORMAT_SUPPORT)
 
-message(STATUS "jstore: downloading fmt")
+message(STATUS "jstore: downloading fmt v${JSTORE_FMT_VERSION}")
 FetchContent_Declare(
     fmt
     GIT_REPOSITORY https://github.com/fmtlib/fmt.git
@@ -45,7 +45,7 @@ FetchContent_MakeAvailable(fmt)
 
 set(JSTORE_VISIT_STRUCT_VERSION "1.1.0" CACHE STRING "visit_struct version to use in the project")
 
-message(STATUS "jstore: downloading visit_struct")
+message(STATUS "jstore: downloading visit_struct v${JSTORE_VISIT_STRUCT_VERSION}")
 FetchContent_Declare(
     visit_struct
     GIT_REPOSITORY https://github.com/cbeck88/visit_struct.git
@@ -65,13 +65,13 @@ target_compile_features(visit_struct::visit_struct INTERFACE "cxx_std_11")
 # -------------------------------
 
 if(JSTORE_ENABLE_DBUS)
-    set(JSTORE_DBUS_VERSION "1.6.0" CACHE STRING "sdbus-c++ version to use in the project")
+    set(JSTORE_DBUS_VERSION "2.0.0" CACHE STRING "sdbus-c++ version to use in the project")
 
     if(NOT JSTORE_BUILD_DBUS)
         message(STATUS "jstore: using system sdbus-c++")
         find_package(sdbus-c++ ${JSTORE_DBUS_VERSION} REQUIRED)
     else()
-        message(STATUS "jstore: downloading sdbus-c++")
+        message(STATUS "jstore: downloading sdbus-c++ v${JSTORE_DBUS_VERSION}")
         FetchContent_Declare(
             sdbus-c++
             GIT_REPOSITORY https://github.com/Kistler-Group/sdbus-cpp.git
@@ -79,7 +79,7 @@ if(JSTORE_ENABLE_DBUS)
             GIT_SHALLOW ON
         )
         set(BUILD_SHARED_LIBS OFF)
-        set(BUILD_LIBSYSTEMD ON)
+        set(SDBUSCPP_BUILD_LIBSYSTEMD ON)
         FetchContent_MakeAvailable(sdbus-c++)
         add_library(SDBusCpp::sdbus-c++ ALIAS sdbus-c++)
     endif()

@@ -14,9 +14,9 @@
 using namespace std;
 using json = nlohmann::json;
 
-static const string SERVICE = "io.davidleeds.Test.JStore";
-static const string OBJECT = "/io/davidleeds/Test/JStore";
-static const filesystem::path file = "/tmp/test/jstore/data.json";
+static const sdbus::ServiceName SERVICE { "io.davidleeds.Test.JStore" };
+static const sdbus::ObjectPath OBJECT   { "/io/davidleeds/Test/JStore" };
+static const filesystem::path file      { "/tmp/test/jstore/data.json"};
 
 struct jstore_proxy {
     jstore_proxy(sdbus::IConnection &conn) :
@@ -25,10 +25,8 @@ struct jstore_proxy {
         proxy_->uponSignal("ValuesChanged")
                 .onInterface(jstore::DBUS_INTERFACE)
                 .call([this](const map<string, string> &values) {
-                        last_values_changed = values;
+                    last_values_changed = values;
                 });
-
-        proxy_->finishRegistration();
     }
 
     string Get(const string &path)
@@ -87,25 +85,29 @@ struct visitable {
 VISITABLE_STRUCT(test_dbus::visitable, b, s, i, j, a, m, m2);
 
 
-TEST_CASE("jstore::dbus", "[jstore]") {
-
+TEST_CASE("jstore::dbus", "[jstore]")
+{
     filesystem::remove_all(file);
     filesystem::create_directories(file.parent_path());
 
     /* Run test service independently on its own thread */
-    unique_ptr<sdbus::IConnection> dbus{sdbus::createSessionBusConnection(SERVICE)};
-    dbus->enterEventLoopAsync();
+    unique_ptr<sdbus::IConnection> service_conn{sdbus::createSessionBusConnection(SERVICE)};
+    service_conn->enterEventLoopAsync();
 
     jstore::tree<test_dbus::visitable> conf{file};
 
     /* Register D-Bus bindings */
-    REQUIRE_NOTHROW(conf.register_dbus(*dbus, OBJECT));
+    unique_ptr<sdbus::IObject> service_object{sdbus::createObject(*service_conn, OBJECT)};
+    REQUIRE_NOTHROW(conf.register_dbus(*service_object));
 
     /* Create D-Bus proxy to interact with the service */
-    jstore_proxy proxy{*dbus};
+    unique_ptr<sdbus::IConnection> client_conn{sdbus::createSessionBusConnection()};
+    client_conn->enterEventLoopAsync();
+    jstore_proxy proxy{*client_conn};
 
 
-    SECTION("Get") {
+    SECTION("Get")
+    {
         /* Get default values */
         REQUIRE(proxy.Get("") == R"({"a":[1,2,3],"b":true,"i":99,"j":{"list":[1,2,3],"word":"foo"},"m":{"x":11,"y":22},"m2":[[1,{"a":1}],[2,{"b":2}]],"s":"string"})");
         REQUIRE(proxy.Get("b") == R"(true)");
@@ -139,7 +141,8 @@ TEST_CASE("jstore::dbus", "[jstore]") {
         REQUIRE_THROWS(proxy.Get("m2/1/c"));
     }
 
-    SECTION("GetAll") {
+    SECTION("GetAll")
+    {
         REQUIRE(proxy.GetAll().at("b") == R"(true)");
         REQUIRE(proxy.GetAll().at("s") == R"("string")");
         REQUIRE(proxy.GetAll().at("i") == R"(99)");
@@ -154,7 +157,8 @@ TEST_CASE("jstore::dbus", "[jstore]") {
         REQUIRE(proxy.GetAll().at("m2/2/b") == R"(2)");
     }
 
-    SECTION("Set") {
+    SECTION("Set")
+    {
         /* Set existing members */
         REQUIRE_NOTHROW(proxy.Set("b", R"(false)"));
         REQUIRE(conf->b == false);
@@ -195,10 +199,12 @@ TEST_CASE("jstore::dbus", "[jstore]") {
         REQUIRE_NOTHROW(proxy.Set("m2/3/c", R"(999)"));
     }
 
-    SECTION("ValuesChanged") {
+    SECTION("ValuesChanged")
+    {
         REQUIRE(proxy.last_values_changed.empty());
 
-        SECTION("emit 1-N leaf nodes") {
+        SECTION("emit 1-N leaf nodes")
+        {
             conf.emit_values_changed(conf->b, conf->s, conf->i);
 
             /* Wait for signal to be handled */
@@ -215,7 +221,8 @@ TEST_CASE("jstore::dbus", "[jstore]") {
             REQUIRE(proxy.last_values_changed.at("i") == R"(99)");
         }
 
-        SECTION("emit non-leaf nodes") {
+        SECTION("emit non-leaf nodes")
+        {
             conf.emit_values_changed(conf->a, conf->m);
 
             /* Wait for signal to be handled */
@@ -236,7 +243,8 @@ TEST_CASE("jstore::dbus", "[jstore]") {
             REQUIRE(proxy.last_values_changed.at("m/y") == R"(22)");
         }
 
-        SECTION("emit empty non-leaf nodes") {
+        SECTION("emit empty non-leaf nodes")
+        {
             conf->a.clear();
             conf->m.clear();
 
@@ -259,7 +267,8 @@ TEST_CASE("jstore::dbus", "[jstore]") {
             REQUIRE(proxy.last_values_changed.at("m") == R"({})");
         }
 
-        SECTION("emit all") {
+        SECTION("emit all")
+        {
             conf.emit_values_changed(conf.root());
 
             /* Wait for signal to be handled */

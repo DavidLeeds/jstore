@@ -31,7 +31,7 @@ namespace jstore {
 using json = nlohmann::json;
 
 #if JSTORE_SDBUSCPP
-    inline const std::string DBUS_INTERFACE = "io.davidleeds.JStore";
+    inline const sdbus::InterfaceName DBUS_INTERFACE{"io.davidleeds.JStore"};
 #endif
 
 
@@ -181,20 +181,16 @@ public:
 
 #if JSTORE_SDBUSCPP
     /*
-     * Add the io.davidleeds.JStore D-Bus interface to the
-     * supplied object. This interface reflects the D-Bus Properties
-     * interface, but does not have a fixed interface to allow dynamically
-     * changing tree content.
-     *
-     * Note: this function MUST be called prior to invoking
-     * sdbus::IObject::finishRegistration().
+     * Add the io.davidleeds.JStore D-Bus interface to the supplied object.
+     * This interface reflects the org.freedesktop.DBus.Properties interface,
+     * but supports flexible path strings to access dynamically changing tree content.
      */
     void register_dbus(sdbus::IObject &object)
     {
-        dbus_object_ptr_ = &object;
+        std::vector<sdbus::VTableItem> vtable;
 
-        object.registerMethod("Get")
-                .onInterface(DBUS_INTERFACE)
+        vtable.emplace_back(
+                sdbus::registerMethod("Get")
                 .implementedAs([this](const std::string &path) {
                     std::string val;
 
@@ -211,20 +207,22 @@ public:
                     return val;
                 })
                 .withInputParamNames("Path")
-                .withOutputParamNames("Value");
+                .withOutputParamNames("Value")
+        );
 
-        object.registerMethod("GetAll")
-                .onInterface(DBUS_INTERFACE)
+        vtable.emplace_back(
+                sdbus::registerMethod("GetAll")
                 .implementedAs([this]() {
                     values_builder builder;
                     builder.add("", root_);
 
                     return builder.values;
                 })
-                .withOutputParamNames("Values");
+                .withOutputParamNames("Values")
+        );
 
-        object.registerMethod("Set")
-                .onInterface(DBUS_INTERFACE)
+        vtable.emplace_back(
+                sdbus::registerMethod("Set")
                 .implementedAs([this](const std::string &path, const std::string &val) {
                     bool found = jstore::visit_path(root_, path, [this, &val](auto &member) {
                         json j;
@@ -252,24 +250,25 @@ public:
                         throw sdbus::createError(EROFS, e.what());
                     }
                 })
-                .withInputParamNames("Path", "Value");
+                .withInputParamNames("Path", "Value")
+        );
 
-                object.registerSignal("ValuesChanged")
-                        .onInterface(DBUS_INTERFACE)
-                        .withParameters<std::map<std::string, std::string>>("Values");
+        vtable.emplace_back(
+                sdbus::registerSignal("ValuesChanged")
+                .withParameters<std::map<std::string, std::string>>("Values")
+        );
+
+        dbus_vtable_slot_ = object.addVTable(DBUS_INTERFACE, std::move(vtable), sdbus::return_slot);
+        dbus_object_ptr_ = &object;
     }
 
     /*
-     * Create a new D-Bus object that implements the io.davidleeds.JStore D-Bus
-     * interface. This interface reflects the D-Bus Properties interface, but does
-     * not have a fixed interface to allow dynamically
-     * changing tree content.
+     * Disable D-Bus access.
      */
-    void register_dbus(sdbus::IConnection &conn, const std::string &object_path)
+    void unregister_dbus()
     {
-        dbus_object_storage_ = sdbus::createObject(conn, object_path);
-        register_dbus(*dbus_object_storage_);
-        dbus_object_storage_->finishRegistration();
+        dbus_vtable_slot_.reset();
+        dbus_object_ptr_ = nullptr;
     }
 
     /*
@@ -381,8 +380,8 @@ private:
         }
     }; /* values_builder */
 
-    std::unique_ptr<sdbus::IObject> dbus_object_storage_;
     sdbus::IObject *dbus_object_ptr_{nullptr};
+    sdbus::Slot dbus_vtable_slot_;
 
 public:
 
