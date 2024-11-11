@@ -67,5 +67,5 @@ endif()
 # -------------------------------
 
 if(JSTORE_BUILD_EXAMPLES)
-    # add_subdirectory(examples)
+    add_subdirectory(examples)
 endif()

@@ -160,6 +160,10 @@ s "\"Home\""
 
 > **Note:** `jstore` serializes the tree to JSON. A slash-delimited path is used to visit a specific node in the tree. As shown above, the path `profiles/42/name` accesses the `profiles` map at key `42`, and returns the JSON serialization of the `name` string. Getting `profiles/42` would return a JSON object representing the entire `wifi_profile` struct.
 
+## Examples
+
+[examples/wifi_manager.cpp](https://github.com/DavidLeeds/jstore/blob/main/examples) demonstrates the library features discussed above. To build examples, set the `JSTORE_BUILD_EXAMPLES` CMake option to `ON`.
+
 ## Integration
 
 Coming soon
