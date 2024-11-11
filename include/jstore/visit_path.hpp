@@ -46,7 +46,7 @@ template <traits::map T, typename Func>
 bool visit_path(T &container, std::string_view path, const Func &func, bool insert_keys = false, const error_func &on_error = {});
 template <traits::visitable T, typename Func>
 bool visit_path(T &container, std::string_view path, const Func &func, bool insert_keys = false, const error_func &on_error = {});
-template <traits::not_container T, typename Func>
+template <traits::leaf T, typename Func>
 bool visit_path(T &value, std::string_view path, const Func &func, bool insert_keys = false, const error_func &on_error = {});
 
 
@@ -174,7 +174,7 @@ bool visit_path(T &container, std::string_view path, const Func &func, bool inse
 /*
  * Visit path for non-container types.
  */
-template <traits::not_container T, typename Func>
+template <traits::leaf T, typename Func>
 bool visit_path(T &value, std::string_view path, const Func &func, bool insert_keys, const error_func &on_error)
 {
     if (!path.empty()) {

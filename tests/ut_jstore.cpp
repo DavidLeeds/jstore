@@ -377,7 +377,7 @@ TEST_CASE("jstore::visit_path", "[jstore]")
         SECTION("valid path (element[0])")
         {
             bool result = jstore::visit_path(v, "0", [&](auto &value) {
-                if constexpr (jstore::traits::not_container<decltype(value)>) {
+                if constexpr (jstore::traits::leaf<decltype(value)>) {
                     REQUIRE(addressof(value) == addressof(v[0]));
 
                     value = "aa";
@@ -396,7 +396,7 @@ TEST_CASE("jstore::visit_path", "[jstore]")
         SECTION("valid path (element[2])")
         {
             bool result = jstore::visit_path(v, "2", [&](auto &value) {
-                if constexpr (jstore::traits::not_container<decltype(value)>) {
+                if constexpr (jstore::traits::leaf<decltype(value)>) {
                     REQUIRE(addressof(value) == addressof(v[2]));
 
                     value = "cc";
@@ -542,7 +542,7 @@ TEST_CASE("jstore::visit_path", "[jstore]")
         SECTION("valid path (element[a])")
         {
             bool result = jstore::visit_path(m, "a", [&](auto &value) {
-                if constexpr (jstore::traits::not_container<decltype(value)>) {
+                if constexpr (jstore::traits::leaf<decltype(value)>) {
                     REQUIRE(addressof(value) == addressof(m.at("a")));
 
                     value = 11;
@@ -561,7 +561,7 @@ TEST_CASE("jstore::visit_path", "[jstore]")
         SECTION("valid path (element[c])")
         {
             bool result = jstore::visit_path(m, "c", [&](auto &value) {
-                if constexpr (jstore::traits::not_container<decltype(value)>) {
+                if constexpr (jstore::traits::leaf<decltype(value)>) {
                     REQUIRE(addressof(value) == addressof(m.at("c")));
 
                     value = 33;
@@ -590,7 +590,7 @@ TEST_CASE("jstore::visit_path", "[jstore]")
         SECTION("valid path (not populated, insert_keys true)")
         {
             bool result = jstore::visit_path(m, "d", [&](auto &value) {
-                if constexpr (jstore::traits::not_container<decltype(value)>) {
+                if constexpr (jstore::traits::leaf<decltype(value)>) {
                     REQUIRE(addressof(value) == addressof(m.at("d")));
 
                     value = 44;
@@ -646,7 +646,7 @@ TEST_CASE("jstore::visit_path", "[jstore]")
         SECTION("valid path (element[1])")
         {
             bool result = jstore::visit_path(m, "1", [&](auto &value) {
-                if constexpr (jstore::traits::not_container<decltype(value)>) {
+                if constexpr (jstore::traits::leaf<decltype(value)>) {
                     REQUIRE(addressof(value) == addressof(m.at(1)));
 
                     value = 11;
@@ -665,7 +665,7 @@ TEST_CASE("jstore::visit_path", "[jstore]")
         SECTION("valid path (element[3])")
         {
             bool result = jstore::visit_path(m, "3", [&](auto &value) {
-                if constexpr (jstore::traits::not_container<decltype(value)>) {
+                if constexpr (jstore::traits::leaf<decltype(value)>) {
                     REQUIRE(addressof(value) == addressof(m.at(3)));
 
                     value = 33;
@@ -684,7 +684,7 @@ TEST_CASE("jstore::visit_path", "[jstore]")
         SECTION("valid path (element[4] not populated, insert_keys true)")
         {
             bool result = jstore::visit_path(m, "4", [&](auto &value) {
-                if constexpr (jstore::traits::not_container<decltype(value)>) {
+                if constexpr (jstore::traits::leaf<decltype(value)>) {
                     REQUIRE(addressof(value) == addressof(m.at(4)));
 
                     value = 44;

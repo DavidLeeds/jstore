@@ -9,8 +9,8 @@
 
 #include <string>
 
-#include <visit_struct/visit_struct.hpp>
 #include <fmt/core.h>
+#include <visit_struct/visit_struct.hpp>
 
 #include <jstore/traits.hpp>
 
@@ -34,8 +34,8 @@ template <traversal Traversal, traits::map T, typename Func>
 void for_each(T &container, const std::string &path, const Func &func);
 template <traversal Traversal, traits::visitable T, typename Func>
 void for_each(T &container, const std::string &path, const Func &func);
-template <traversal Traversal, traits::not_container T, typename Func>
-void for_each(T &container, const std::string &path, const Func &func);
+template <traversal Traversal, traits::leaf T, typename Func>
+void for_each(T &value, const std::string &path, const Func &func);
 
 
 /*
@@ -89,7 +89,7 @@ void for_each(T &container, const std::string &path, const Func &func)
 /*
  * Leaf node handler.
  */
-template <traversal Traversal, traits::not_container T, typename Func>
+template <traversal Traversal, traits::leaf T, typename Func>
 void for_each(T &value, const std::string &path, const Func &func)
 {
     if constexpr (Traversal & LEAF) {

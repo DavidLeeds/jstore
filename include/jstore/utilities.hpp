@@ -8,7 +8,7 @@
 #pragma once
 
 #include <functional>
-#include <string_view>
+#include <string>
 
 #include <fmt/core.h>
 
@@ -17,7 +17,7 @@ namespace jstore {
 /*
  * Error function type.
  */
-using error_func = std::function<void(std::string_view)>;
+using error_func = std::function<void(std::string &&)>;
 
 /*
  * If valid, invoke `func` with a formatted error message.

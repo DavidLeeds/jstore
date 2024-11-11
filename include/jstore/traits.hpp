@@ -65,6 +65,6 @@ template <typename T>
 concept container = is_container_v<std::decay_t<T>>;
 
 template <typename T>
-concept not_container = !is_container_v<std::decay_t<T>>;
+concept leaf = !container<T>;
 
 } /* namespace jstore::traits */

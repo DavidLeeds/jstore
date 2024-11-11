@@ -35,7 +35,7 @@ struct wifi_config {
 VISITABLE_STRUCT(wifi_config, country, selected_profile, profiles);
 ```
 
-> Note: [nlohmann/json](https://github.com/nlohmann/json) does not provide a built-in serializer for `std::optional`. Thus, a user-defined ADL serializer must be defined for the above example to work. See [How do I convert third-party types?](https://github.com/nlohmann/json?tab=readme-ov-file#how-do-i-convert-third-party-types)
+> **Note:** [nlohmann/json](https://github.com/nlohmann/json) does not provide a built-in serializer for `std::optional`. Thus, a user-defined ADL serializer must be defined for the above example to work. See [How do I convert third-party types?](https://github.com/nlohmann/json?tab=readme-ov-file#how-do-i-convert-third-party-types)
 
 2. Construct a `jstore::tree<T>` object that wraps the root configuration type. If a valid file exists, it will be loaded and `wifi_config` will be initialized from its contents.
 
@@ -56,6 +56,7 @@ if (config->selected_profile.has_value()) {
 ### Updating and persisting your application state
 
 1. Make some changes to the in-memory state:
+
 ```c++
 config->profiles[42] = {
     .name = "Work",
@@ -67,6 +68,7 @@ config->selected_profile = 42;
 ```
 
 2. Update the config file:
+
 ```c++
 config.save();
 ```
@@ -109,6 +111,54 @@ void dump_config()
     });
 }
 ```
+
+### Allowing other services to access config via D-Bus
+
+Applications frequently need to access each other's state or configuration. An example of this is a GUI that allows users to configure settings owned by other services. Good design promotes loose coupling between services, so direct access to another service's on disk data should be avoided. `jstore` optionally supports D-Bus bindings, enabling remote access and change notifications via RPC. To compile in D-Bus functionality, set the `JSTORE_ENABLE_DBUS` CMake option to `ON`.
+
+The below code demonstrates setting up a simple D-Bus service using the `sdbus-c++` library and registering a `jstore::tree<T>` with the desired D-Bus object:
+
+```c++
+// Create a connection to the D-Bus daemon
+std::unique_ptr<sdbus::IConnection> conn = sdbus::createBusConnection(sdbus::ServiceName{"com.example.WifiManager"});
+
+// Create a D-Bus object for the application (this may implement several interfaces, in addition to JStore) 
+std::unique_ptr<sdbus::IObject> obj = sdbus::createObject(*conn, sdbus::ObjectPath{"/com/example/WifiManager"});
+
+// Create the configuration tree
+jstore::tree<wifi_config> config{"/etc/config/wifi.conf"};
+
+// Register the io.davidleeds.JStore D-Bus interface to enable remote access
+config.register_dbus(*obj);
+
+// Process incoming D-Bus messages
+// Note: this call blocks; most applications will integrate sdbus-c++ with their primary event loop
+conn->enterEventLoop();
+```
+
+With the above code running, it is possible to invoke the `Get`, `GetAll`, and `Set` D-Bus methods defined in the `io.davidleeds.JStore` interface. The `busctl` command-line tool can be used to test this.
+
+Get the name of profile 42:
+
+```sh
+busctl call com.example.WifiManager /com/example/WifiManager io.davidleeds.JStore Get s "profiles/42/name"
+s "\"Work\""
+```
+
+Change the name:
+
+```sh
+busctl call com.example.WifiManager /com/example/WifiManager io.davidleeds.JStore Set ss "profiles/42/name" "\"Home\""
+```
+
+Get the new name:
+
+```sh
+busctl call com.example.WifiManager /com/example/WifiManager io.davidleeds.JStore Get s "profiles/42/name"
+s "\"Home\""
+```
+
+> **Note:** `jstore` serializes the tree to JSON. A slash-delimited path is used to visit a specific node in the tree. As shown above, the path `profiles/42/name` accesses the `profiles` map at key `42`, and returns the JSON serialization of the `name` string. Getting `profiles/42` would return a JSON object representing the entire `wifi_profile` struct.
 
 ## Integration
 

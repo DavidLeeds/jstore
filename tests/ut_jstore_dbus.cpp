@@ -205,7 +205,7 @@ TEST_CASE("jstore::dbus", "[jstore]")
 
         SECTION("emit 1-N leaf nodes")
         {
-            conf.emit_values_changed(conf->b, conf->s, conf->i);
+            conf.dbus().emit_values_changed(conf->b, conf->s, conf->i);
 
             /* Wait for signal to be handled */
             for (size_t i = 0; i < 100; ++i) {
@@ -223,7 +223,7 @@ TEST_CASE("jstore::dbus", "[jstore]")
 
         SECTION("emit non-leaf nodes")
         {
-            conf.emit_values_changed(conf->a, conf->m);
+            conf.dbus().emit_values_changed(conf->a, conf->m);
 
             /* Wait for signal to be handled */
             for (size_t i = 0; i < 100; ++i) {
@@ -248,7 +248,7 @@ TEST_CASE("jstore::dbus", "[jstore]")
             conf->a.clear();
             conf->m.clear();
 
-            conf.emit_values_changed(conf->a, conf->m);
+            conf.dbus().emit_values_changed(conf->a, conf->m);
 
             /* Wait for signal to be handled */
             for (size_t i = 0; i < 100; ++i) {
@@ -269,7 +269,7 @@ TEST_CASE("jstore::dbus", "[jstore]")
 
         SECTION("emit all")
         {
-            conf.emit_values_changed(conf.root());
+            conf.dbus().emit_values_changed(conf.root());
 
             /* Wait for signal to be handled */
             for (size_t i = 0; i < 100; ++i) {

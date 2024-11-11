@@ -11,13 +11,9 @@
 #include <functional>
 #include <type_traits>
 
-#include <nlohmann/json.hpp>
 #include <fmt/core.h>
+#include <nlohmann/json.hpp>
 #include <visit_struct/visit_struct.hpp>
-
-#if JSTORE_SDBUSCPP
-#include <sdbus-c++/sdbus-c++.h>
-#endif
 
 #include <jstore/for_each.hpp>
 #include <jstore/serialization.hpp>
@@ -26,14 +22,13 @@
 #include <jstore/utilities.hpp>
 #include <jstore/visit_path.hpp>
 
+#if JSTORE_SDBUSCPP
+#include <jstore/dbus.hpp>
+#endif
+
 namespace jstore {
 
 using json = nlohmann::json;
-
-#if JSTORE_SDBUSCPP
-    inline const sdbus::InterfaceName DBUS_INTERFACE{"io.davidleeds.JStore"};
-#endif
-
 
 /*
  * JSON Storage wrapper public API
@@ -178,88 +173,17 @@ public:
         jstore::for_each<LEAF>(root_, func);
     }
 
-
 #if JSTORE_SDBUSCPP
+    using dbus_type = jstore::dbus<Root>;
+
     /*
      * Add the io.davidleeds.JStore D-Bus interface to the supplied object.
      * This interface reflects the org.freedesktop.DBus.Properties interface,
      * but supports flexible path strings to access dynamically changing tree content.
      */
-    void register_dbus(sdbus::IObject &object)
+    void register_dbus(sdbus::IObject &object, dbus_type::filter_func filter = {})
     {
-        std::vector<sdbus::VTableItem> vtable;
-
-        vtable.emplace_back(
-                sdbus::registerMethod("Get")
-                .implementedAs([this](const std::string &path) {
-                    std::string val;
-
-                    bool found = jstore::visit_path(root_, path, [this, &val](const auto &member) {
-                        json j;
-                        serialize(j, member, false, on_error_);
-                        val = j.dump();
-                    });
-
-                    if (!found) {
-                        throw sdbus::createError(ENOENT, "unknown item");
-                    }
-
-                    return val;
-                })
-                .withInputParamNames("Path")
-                .withOutputParamNames("Value")
-        );
-
-        vtable.emplace_back(
-                sdbus::registerMethod("GetAll")
-                .implementedAs([this]() {
-                    values_builder builder;
-                    builder.add("", root_);
-
-                    return builder.values;
-                })
-                .withOutputParamNames("Values")
-        );
-
-        vtable.emplace_back(
-                sdbus::registerMethod("Set")
-                .implementedAs([this](const std::string &path, const std::string &val) {
-                    bool found = jstore::visit_path(root_, path, [this, &val](auto &member) {
-                        json j;
-
-                        try {
-                            j = json::parse(val);
-                        } catch (const std::exception &e) {
-                            throw sdbus::createError(EINVAL,
-                                    fmt::format("JSON parse error: {}", e.what()));
-                        }
-
-                        if (!deserialize(j, member, on_error_)) {
-                            throw sdbus::createError(EINVAL, fmt::format("failed to apply JSON {} to {}",
-                                    j.type_name(), typestr<std::decay_t<decltype(member)>>()));
-                        }
-                    }, true /* insert_keys */);
-
-                    if (!found) {
-                        throw sdbus::createError(ENOENT, "unknown item");
-                    }
-
-                    try {
-                        save();
-                    } catch (const std::exception &e) {
-                        throw sdbus::createError(EROFS, e.what());
-                    }
-                })
-                .withInputParamNames("Path", "Value")
-        );
-
-        vtable.emplace_back(
-                sdbus::registerSignal("ValuesChanged")
-                .withParameters<std::map<std::string, std::string>>("Values")
-        );
-
-        dbus_vtable_slot_ = object.addVTable(DBUS_INTERFACE, std::move(vtable), sdbus::return_slot);
-        dbus_object_ptr_ = &object;
+        dbus_ = std::make_unique<dbus_type>(root_, object, std::move(filter));
     }
 
     /*
@@ -267,124 +191,20 @@ public:
      */
     void unregister_dbus()
     {
-        dbus_vtable_slot_.reset();
-        dbus_object_ptr_ = nullptr;
+        dbus_.reset();
     }
 
-    /*
-     * Emit a ValuesChanged signal with entries for each node in the
-     * argument list. If the specified node is a container with individually
-     * accessible children, an entry will be added for each child node.
-     */
-    template <typename ...Nodes>
-    void emit_values_changed(const Nodes &...nodes)
+    dbus_type &dbus()
     {
-        static_assert(sizeof...(nodes) > 0);
-
-        if (!dbus_object_ptr_) {
+        if (!dbus_) {
             throw std::runtime_error("D-Bus interface not registered");
         }
 
-        values_builder builder;
-
-        /* Lambda to find the specified tree node and populate it in the values map */
-        auto add_node = [this, &builder](const auto &node) {
-            bool found = false;
-
-            jstore::for_each<ALL>(root_, [&builder, &node, &found](const std::string &path, const auto &member) {
-                using node_type = std::decay_t<decltype(node)>;
-                using member_type = std::decay_t<decltype(member)>;
-
-                if constexpr (std::is_same_v<node_type, member_type>) {
-                    if (!found && std::addressof(node) == std::addressof(member)) {
-                        found = true;
-                        builder.add(path, member);
-                    }
-                }
-            });
-
-            if (!found) {
-                throw std::invalid_argument(fmt::format("{} node is not in the tree",
-                        typestr<std::decay_t<decltype(node)>>()));
-            }
-        };
-
-        /* Add entries for each node in the parameter pack */
-        ((add_node(nodes)), ...);
-
-        if (!builder.values.empty()) {
-            dbus_object_ptr_->emitSignal("ValuesChanged")
-                    .onInterface(DBUS_INTERFACE)
-                    .withArguments(builder.values);
-        }
+        return *dbus_;
     }
 
 private:
-    /*
-     * Builder object that selects which tree elements to export to keep
-     * observers' caches consistent.
-     */
-    struct values_builder {
-        std::map<std::string, std::string> values;
-
-        template <traits::array T>
-        void add(const std::string &path, const T &container)
-        {
-            /*
-             * Array elements are identified using an index in the path.
-             * Because not all types represented by array types support
-             * random indexed access (e.g. std::set), cached copies
-             * of array types owned by observers cannot necessarily be
-             * kept consistent if individual elements are pushed. Thus,
-             * we push the entire container on change.
-             */
-            add_internal(path, container);
-        }
-
-        template <traits::map T>
-        void add(const std::string &path, const T &container)
-        {
-            if (container.empty()) {
-                /* If empty, push an empty object to invalidate any cached elements */
-                add_internal(path, container);
-            } else {
-                /* Recurse into map values, as these can be individually applied */
-                for (auto &[key, value] : container) {
-                    add(fmt::format("{}{}{}", path, path.empty() ? "" : "/", key), value);
-                }
-            }
-        }
-
-        template <traits::visitable T>
-        void add(const std::string &path, const T &container)
-        {
-            /* Visitable structs have fixed content, so always push individual members */
-            visit_struct::for_each(container, [this, &path](const char *key, auto &member) {
-                add(fmt::format("{}{}{}", path, path.empty() ? "" : "/", key), member);
-            });
-        }
-
-        template <traits::not_container T>
-        void add(const std::string &path, const T &value)
-        {
-            add_internal(path, value);
-        }
-
-    private:
-        template <typename T>
-        void add_internal(const std::string &path, const T &member)
-        {
-            json j;
-            serialize(j, member);
-            values.emplace(path, j.dump());
-        }
-    }; /* values_builder */
-
-    sdbus::IObject *dbus_object_ptr_{nullptr};
-    sdbus::Slot dbus_vtable_slot_;
-
-public:
-
+    std::unique_ptr<dbus_type> dbus_;
 #endif /* JSTORE_SDBUSCPP */
 
 private:

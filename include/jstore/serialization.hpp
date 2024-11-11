@@ -31,7 +31,7 @@ template <traits::not_convertible_map T>
 bool serialize(json &j, const T &container, bool omit_defaults = false, const error_func &on_error = {});
 template <traits::visitable T>
 bool serialize(json &j, const T &container, bool omit_defaults = false, const error_func &on_error = {});
-template <traits::not_container T>
+template <traits::leaf T>
 bool serialize(json &j, const T &value, bool omit_defaults = false, const error_func &on_error = {});
 
 
@@ -142,7 +142,7 @@ bool serialize(json &j, const T &container, bool omit_defaults, const error_func
  *
  * Note that `void to_json(json &, const T &)` MUST be defined for type T.
  */
-template <traits::not_container T>
+template <traits::leaf T>
 bool serialize(json &j, const T &value, bool omit_defaults, const error_func &on_error)
 {
     try {
@@ -168,7 +168,7 @@ template <traits::not_convertible_map T>
 bool deserialize(const json &j, T &container, const error_func &on_error = {});
 template <traits::visitable T>
 bool deserialize(const json &j, T &container, const error_func &on_error = {});
-template <traits::not_container T>
+template <traits::leaf T>
 bool deserialize(const json &j, T &value, const error_func &on_error = {});
 
 
@@ -282,7 +282,7 @@ bool deserialize(const json &j, T &container, const error_func &on_error)
  *
  * Note that `void from_json(const json &, T &)` MUST be defined for type T.
  */
-template <traits::not_container T>
+template <traits::leaf T>
 bool deserialize(const json &j, T &value, const error_func &on_error)
 {
     try {
